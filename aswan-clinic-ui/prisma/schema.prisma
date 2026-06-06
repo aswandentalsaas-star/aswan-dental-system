@@ -1,0 +1,277 @@
+// ==========================================
+// إعدادات المحرك وقاعدة البيانات
+// ==========================================
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ==========================================
+// 1. Super Admin & Clinic Management (SaaS & Auth)
+// ==========================================
+enum PlanType {
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+model Clinic {
+  id                 String              @id @default(cuid())
+  name               String
+  plan               PlanType            @default(STARTER)
+  isActive           Boolean             @default(true)
+  users              User[]
+  patients           Patient[]
+  appointments       Appointment[]
+  inventory          InventoryItem[]
+  suppliers          Supplier[]
+  transactions       Transaction[]
+  treatmentRecords   TreatmentRecord[]
+  patientAttachments PatientAttachment[]
+  xrays              XRay[]
+  labOrders          LabOrder[]
+  createdAt          DateTime            @default(now())
+  prescriptions      Prescription[]
+  clinicSettings     ClinicSettings?
+}
+
+enum UserRole {
+  DOCTOR
+  STAFF
+  ADMIN
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String // اسم الطبيب أو المستخدم بالكامل
+  role      UserRole @default(DOCTOR)
+  isActive  Boolean  @default(true)
+  clinicId  String
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+// ==========================================
+// 2. Patients Lifecycle & Appointments (Core Workflow)
+// ==========================================
+model Patient {
+  id               String              @id @default(cuid())
+  name             String
+  phone            String
+  gender           String
+  birthDate        DateTime?
+  chronicDiseases  String[]            @default([]) // الأمراض المزمنة
+  allergies        String[]            @default([]) // الحساسية
+  clinicId         String
+  clinic           Clinic              @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  appointments     Appointment[]
+  treatmentRecords TreatmentRecord[]
+  prescriptions    Prescription[] // تأكد من مطابقة الاسم مع الجداول الأخرى بالأسفل
+  attachments      PatientAttachment[] // لربط مرفقات المريض (الأشعة/التحاليل) مع ملفه الشخصي
+  toothTreatments  ToothTreatment[] // لربط سجل علاجات الأسنان التفصيلية للمريض
+  medicalHistory   MedicalHistory? // لربط التاريخ المرضي والحساسيات كشارات تحذيرية في ملف المريض
+  procedureLogs    ProcedureLog[] // لربط الإجراءات الطبية المتعددة لكل جلسة علاجية
+  settings         ClinicSettings?     @relation(fields: [clinicSettingsId], references: [id]) // لربط إعدادات العيادة (مثل اللوجو) مع ملف المريض في نظام SaaS
+  transactions     Transaction[] // لربط العمليات المالية للمريض مع ملفه الشخصي
+  xrays            XRay[] // لربط الأشعة المولدة للمريض مع ملفه الشخصي
+  allLabOrders     LabOrder[] // لضمان ربط المطلوب من المعمل بالمريض مستقبلا
+  createdAt        DateTime            @default(now())
+  clinicSettingsId String?
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  DELAYED
+}
+
+model Appointment {
+  id               String            @id @default(cuid())
+  startTime        DateTime
+  endTime          DateTime
+  status           AppointmentStatus @default(SCHEDULED)
+  isEmergency      Boolean           @default(false)
+  doctorName       String? // اسم الطبيب المعالج للفرز السريع والتشغيل الفوري
+  patientId        String
+  patient          Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  clinicId         String
+  clinic           Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  treatmentRecords TreatmentRecord[] // السجلات الطبية المولدة من هذا الموعد
+  prescriptions    Prescription[] // الروشتات الصادرة في هذا الموعد تحديداً
+  createdAt        DateTime          @default(now())
+  procedureLogs    ProcedureLog[]
+}
+
+// ==========================================
+// 4. Smart Stock & Supply Chain
+// ==========================================
+model InventoryItem {
+  id           String @id @default(cuid())
+  name         String
+  quantity     Int
+  minThreshold Int    @default(5) // التنبيه عند النقص
+  type         String // EQUIPMENT (أجهزة) أو MATERIAL (خامات)
+  clinicId     String
+  clinic       Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+}
+
+model Supplier {
+  id       String @id @default(cuid())
+  name     String
+  contact  String
+  clinicId String
+  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+}
+
+// ==========================================
+// 5 & 6. Clinical, Labs & X-ray
+// ==========================================
+model TreatmentRecord {
+  id             String  @id @default(cuid())
+  toothNumber    Int?
+  procedureName  String
+  jawMappingData Json? // بيانات الخريطة الديناميكية (إحداثيات الأسنان)
+  doctorNotes    String?
+
+  patientId     String
+  patient       Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appointmentId String?
+  appointment   Appointment?  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  clinicId      String
+  clinic        Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+  createdAt     DateTime      @default(now())
+}
+
+model XRay {
+  id        String   @id @default(cuid())
+  imageUrl  String // رابط الصورة على السحابة
+  type      String // PANORAMA, PERIAPICAL, etc.
+  patientId String
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  clinicId  String
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model LabOrder {
+  id        String   @id @default(cuid())
+  workType  String // نوع التركيبة (crown, bridge, etc.)
+  status    String   @default("SENT") // SENT, RECEIVED, FITTED
+  clinicId  String
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  patient   Patient? @relation(fields: [patientId], references: [id])
+  patientId String?
+}
+
+// ==========================================
+// 7. Finance & Debt Hub
+// ==========================================
+model Transaction {
+  id          String  @id @default(cuid())
+  amount      Float
+  type        String // INCOME (إيرادات) أو EXPENSE (مصروفات)
+  description String
+  isPaid      Boolean @default(true) // لإدارة الديون (Debt Hub)
+
+  clinicId          String
+  clinic            Clinic           @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientId         String?
+  patient           Patient?         @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  treatmentRecordId String?
+  treatmentRecord   TreatmentRecord? @relation(fields: [treatmentRecordId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+model ToothTreatment {
+  id          String   @id @default(cuid())
+  toothNumber Int // رقم السن (FDI) مثل 11, 24
+  procedure   String // نوع الإجراء: حشو عصب، خلع، إلخ
+  notes       String? // ملاحظات الطبيب الشاملة
+  patientId   String
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+}
+
+model Prescription {
+  id            String             @id @default(cuid())
+  patientId     String
+  patient       Patient            @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appointmentId String?            @unique // للربط بالموعد الحالي لتوثيق الزيارة
+  appointment   Appointment?       @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  clinicId      String // لتأمين نظام الـ SaaS وفصل بيانات كل عيادة
+  clinic        Clinic             @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  items         PrescriptionItem[] // قائمة الأدوية داخل الروشتة
+  createdAt     DateTime           @default(now())
+}
+
+model PrescriptionItem {
+  id             String       @id @default(cuid())
+  prescriptionId String
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medicineName   String // اسم الدواء الذكي (مثل: Augmentin 1g)
+  type           String // علبة، شريط، كبسولة، الخ
+  dosage         String // الجرعة (مثل: 500 ملغ)
+  frequency      String // تكرار الجرعة (كل 8 ساعات، قبل النوم)
+  duration       String // مدة العلاج (لمدة 5 أيام، عند اللزوم)
+  notes          String? // تعليمات عامة للمريض (مثل: تؤخذ الأدوية بعد الأكل)
+}
+
+model PatientAttachment {
+  id        String   @id @default(cuid())
+  patientId String
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  fileUrl   String // الرابط السحابي الآمن للملف المرفوع على Supabase Storage
+  fileName  String // اسم الملف الأصلي للرجوع إليه
+  fileType  String // تصنيف الملف: لتمييز هل هو (XRAY) أم إقرار طبي (CONSENT)
+  createdAt DateTime @default(now())
+  clinic    Clinic?  @relation(fields: [clinicId], references: [id])
+  clinicId  String?
+}
+
+// جدول التاريخ المرضي والحساسيات كشارات تحذيرية
+// ==========================================
+model MedicalHistory {
+  id              String   @id @default(cuid())
+  patientId       String   @unique
+  patient         Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  allergies       String[] // مصفوفة حساسية (مثال: ["PENICILLIN"])
+  chronicDiseases String[] // مصفوفة أمراض مزمنة (مثال: ["DIABETES", "HYPERTENSION"])
+  notes           String? // ملاحظات طبية عامة
+}
+
+// جدول الإجراءات الطبية المتعددة للجلسة الواحدة
+// ==========================================
+model ProcedureLog {
+  id            String      @id @default(cuid())
+  appointmentId String
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  toothNumber   Int? // السن المرتبط بالإجراء (يربط مع الـ JawMapping لاحقاً)[span_5](start_span)[span_5](end_span)[span_6](start_span)[span_6](end_span)
+  description   String // حقل نصي ذكي لكتابة الإجراء (حشو، خلع، إلخ)
+  createdAt     DateTime    @default(now())
+  patient       Patient?    @relation(fields: [patientId], references: [id])
+  patientId     String?
+}
+
+// جدول إعدادات طباعة العيادة واللوجو (SaaS Feature)
+// ==========================================
+model ClinicSettings {
+  id           String    @id @default(cuid())
+  clinicId     String    @unique
+  clinic       Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  logoUrl      String? // رابط الشعار المرفوع سحابياً
+  topMargin    Int       @default(40) // الهامش العلوي بالمليمتر
+  bottomMargin Int       @default(40) // الهامش السفلي بالمليمتر
+  footerText   String? // نصوص العناوين والتواصل بالأسفل
+  patients     Patient[]
+}

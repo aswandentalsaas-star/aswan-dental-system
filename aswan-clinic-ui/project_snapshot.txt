@@ -1,0 +1,666 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ==========================================
+// 1. Super Admin & Clinic Management
+// ==========================================
+enum PlanType {
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+model Clinic {
+  id              String           @id @default(cuid())
+  name            String
+  plan            PlanType         @default(STARTER)
+  isActive        Boolean          @default(true)
+  users           User[]
+  patients        Patient[]
+  appointments    Appointment[]
+  inventory       InventoryItem[]
+  suppliers       Supplier[]
+  labs            Lab[]
+  transactions    Transaction[]
+  pettyCash       PettyCash[]
+  createdAt       DateTime         @default(now())
+}
+
+enum Role {
+  ADMIN
+  DOCTOR
+  RECEPTIONIST
+  ACCOUNTANT
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(DOCTOR)
+  clinicId  String
+  clinic    Clinic   @relation(fields: [clinicId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+// ==========================================
+// 2 & 3. Patient Lifecycle & Appointments
+// ==========================================
+enum PatientStatus {
+  MALE
+  FEMALE
+  CHILD
+  PREGNANT
+}
+
+model Patient {
+  id                String            @id @default(cuid())
+  name              String
+  age               String
+  address           String
+  phone             String
+  emergencyPhone    String?           // هاتف طوارئ إضافي
+  gender            PatientStatus     @default(MALE)
+  chronicDiseases   String[]          // مصفوفة الأمراض المزمنة (لربطها بالألوان)
+  consentFormLink   String?           // رابط الإقرار المرفوع سحابياً
+  medicalReportLink String?           // رابط التقرير الطبي
+  jawMappingData    Json?             // لتخزين حالة الفك التفاعلي (SVG)
+  clinicId          String
+  clinic            Clinic            @relation(fields: [clinicId], references: [id])
+  appointments      Appointment[]
+  treatmentRecords  TreatmentRecord[]
+  xRays             XRay[]
+  labWorks          LabWork[]
+  createdAt         DateTime          @default(now())
+  transactions     Transaction[]
+}
+
+model Appointment {
+  id          String   @id @default(cuid())
+  startTime   DateTime
+  duration    Int      @default(30) // الحجز الافتراضي 30 دقيقة
+  isEmergency Boolean  @default(false) // حالة الطوارئ (تسمح بـ 10 دقائق)
+  status      String   @default("SCHEDULED") // SCHEDULED, DELAYED, COMPLETED, NO_SHOW
+  patientId   String
+  patient     Patient  @relation(fields: [patientId], references: [id])
+  clinicId    String
+  clinic      Clinic   @relation(fields: [clinicId], references: [id])
+}
+
+// ==========================================
+// 4. Smart Stock & Supply Chain
+// ==========================================
+enum StockCategory {
+  EQUIPMENT    // الرف الأول: أجهزة ومعدات
+  CONSUMABLES  // الرف الثاني: خامات واستهلاكات
+}
+
+model Supplier {
+  id        String          @id @default(cuid())
+  name      String
+  contact   String
+  address   String?
+  clinicId  String
+  clinic    Clinic          @relation(fields: [clinicId], references: [id])
+  items     InventoryItem[]
+}
+
+model InventoryItem {
+  id            String        @id @default(cuid())
+  name          String
+  category      StockCategory @default(CONSUMABLES)
+  quantity      Float
+  unit          String        // قطعة، علبة، كرتونة
+  minThreshold  Float         // الحد الأدنى للتنبيه الذكي (مثلا 1 للأجهزة، 3 أو 20% للخامات)
+  clinicId      String
+  clinic        Clinic        @relation(fields: [clinicId], references: [id])
+  supplierId    String?
+  supplier      Supplier?     @relation(fields: [supplierId], references: [id])
+}
+
+// ==========================================
+// 5 & 6. Clinical, Labs & X-Ray
+// ==========================================
+model Lab {
+  id        String    @id @default(cuid())
+  name      String
+  contact   String?
+  clinicId  String
+  clinic    Clinic    @relation(fields: [clinicId], references: [id])
+  works     LabWork[]
+}
+
+model LabWork {
+  id          String   @id @default(cuid())
+  procedure   String   // نوع التركيبة المطلوبة
+  status      String   @default("PENDING") // PENDING, SENT, RECEIVED
+  sentDate    DateTime @default(now())
+  receiveDate DateTime?
+  cost        Float?
+  labId       String
+  lab         Lab      @relation(fields: [labId], references: [id])
+  patientId   String
+  patient     Patient  @relation(fields: [patientId], references: [id])
+}
+
+model XRay {
+  id          String   @id @default(cuid())
+  imageUrl    String   // رابط الصورة السحابي
+  jawPosition String   // Upper, Lower, Full
+  notes       String?  // تعليق الطبيب
+  patientId   String
+  patient     Patient  @relation(fields: [patientId], references: [id])
+}
+
+model TreatmentRecord {
+  id          String   @id @default(cuid())
+  patientId   String
+  patient     Patient  @relation(fields: [patientId], references: [id])
+  diagnosis   String
+  procedure   String
+  medications String?  // الأدوية الموصوفة (لربطها بـ Groq AI)
+  cost         Float         @default(0)
+  transactions     Transaction[]
+  createdAt   DateTime @default(now())
+}
+
+// ==========================================
+// 7. Finance & Debt Hub
+// ==========================================
+model Transaction {
+  id              String           @id @default(cuid())
+  amount          Float
+  type            String           // INCOME (إيرادات) أو EXPENSE (مصروفات)
+  description     String
+  
+  // الربط مع العيادة (موجود سابقاً)
+  clinicId        String
+  clinic          Clinic           @relation(fields: [clinicId], references: [id])
+  
+  // الربط مع المريض (إضافة جديدة)
+  patientId       String?          
+  patient         Patient?         @relation(fields: [patientId], references: [id])
+  
+  // الربط مع الزيارة/الإجراء الطبي (إضافة جديدة)
+  treatmentId     String?          
+  treatmentRecord TreatmentRecord? @relation(fields: [treatmentId], references: [id])
+
+  createdAt       DateTime         @default(now())
+}
+
+model PettyCash {
+  id          String   @id @default(cuid())
+  amount      Float
+  reason      String   // المصروفات النثرية
+  clinicId    String
+  clinic      Clinic   @relation(fields: [clinicId], references: [id])
+  createdAt   DateTime @default(now())
+}import React from 'react';
+import { prisma } from '@/lib/prisma';
+import { Calendar, Clock, ChevronLeft, Timer } from 'lucide-react';
+import Link from 'next/link';
+// استدعاء المكون التفاعلي للحجز
+// نرجع خطوتين للخلف (من appointments ثم من dashboard) لنجد مجلد components داخل app
+import AddAppointmentModal from "../../components/AddAppointmentModal";
+import CompleteButton from "@/app/components/CompleteButton";
+
+export default async function AppointmentsPage() {
+  // 1. تحديد نطاق "اليوم"
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  // 2. جلب مواعيد اليوم فقط
+  const appointments = await prisma.appointment.findMany({
+    where: {
+      startTime: { gte: today, lt: tomorrow }
+    },
+    include: { patient: true },
+    orderBy: { startTime: 'asc' },
+  });
+
+  // 3. جلب قائمة المرضى للبحث (هذا الجزء ناقص في كودك الحالي)
+  const patients = await prisma.patient.findMany({
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+    },
+    orderBy: { name: 'asc' }
+  });
+
+  return (
+    <div className="p-8 space-y-6" dir="rtl">
+      {/* رأس الصفحة */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-800">أجندة مواعيد اليوم</h1>
+          <p className="text-slate-500 mt-1">يوجد لديك {appointments.length} مواعيد مجدولة لهذا اليوم</p>
+        </div>
+        
+        {/* استدعاء الـ Modal وتمرير المرضى له (بدلاً من الزر العادي) */}
+        <AddAppointmentModal patients={patients} />
+      </div>
+
+      {/* قائمة المواعيد */}
+<div className="grid gap-4">
+  {appointments.length > 0 ? (
+    appointments.map((apt) => (
+      <div 
+        key={apt.id} 
+        className={`bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm transition-all flex flex-col md:flex-row md:items-center justify-between border-r-8 
+          ${apt.status === 'COMPLETED' 
+            ? 'grayscale opacity-60 border-r-slate-400 bg-slate-100' 
+            : apt.isEmergency ? 'border-r-red-500 shadow-md' : 'border-r-blue-500'}`}
+      >
+        
+        {/* 1. بيانات المريض */}
+        <div className="flex items-center gap-4">
+          <div>
+            <h3 className="font-bold text-lg text-slate-800">{apt.patient?.name}</h3>
+            <p className="text-slate-500 text-sm">{apt.patient?.phone}</p>
+          </div>
+        </div>
+
+        {/* 2. الأزرار (إتمام الكشف + ملف المريض) */}
+        <div className="flex gap-2 mt-4 md:mt-0">
+          {apt.status !== 'COMPLETED' && (
+            <CompleteButton id={apt.id} />
+          )}
+          
+          <Link
+            href={`/patients/${apt.patientId}`}
+            className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
+          >
+            ملف المريض <ChevronLeft size={18} />
+          </Link>
+        </div>
+      </div>
+    ))
+  ) : (
+    /* تم نقل التعليق للداخل لضمان سلامة الأقواس */
+    <div className="text-center py-10 bg-white rounded-[2rem] border border-slate-100">
+      <p className="text-slate-500 font-medium">لا توجد مواعيد أخرى اليوم</p>
+    </div>
+  )}
+      </div>
+    </div>
+  );
+}import Link from 'next/link';
+import { addTreatmentRecord, addAppointment } from '../../../../lib/actions';
+import React from 'react';
+import { prisma } from '@/lib/prisma';
+import { notFound } from 'next/navigation';
+import { ArrowRight, User, Phone, Activity, Calendar, FileText, AlertCircle } from 'lucide-react';
+
+export default async function PatientProfilePage({ 
+  params,
+  searchParams 
+}: { 
+  params: Promise<{ id: string }>,
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+  // انتظر استلام البيانات
+  const resolvedParams = await params;
+  const resolvedSearchParams = await searchParams;
+  const patientId = resolvedParams.id;
+
+  // 2. جلب بيانات المريض من قاعدة البيانات مع سجل الزيارات والمواعيد
+  // 1. جلب بيانات المريض كاملة مع كل العلاقات المطلوبة
+const patient = await prisma.patient.findUnique({
+  where: { id: patientId }, // تأكد أن المتغير هنا مطابق لما لديك (params.id أو patientId)
+  include: {
+    treatmentRecords: {
+      orderBy: { createdAt: 'desc' },
+      include: { 
+        transactions: true // لجلب مدفوعات كل زيارة على حدة
+      } 
+    },
+    transactions: true, // لجلب كافة مدفوعات المريض العامة
+    appointments: {
+      orderBy: { startTime: 'desc' } // جلب المواعيد مرتبة
+    }
+  }
+});
+
+// حساب الإجماليات
+// 2. حساب الإجماليات المالية بناءً على البيانات التي جلبناها
+const totalCost = patient?.treatmentRecords.reduce((sum, rec) => sum + rec.cost, 0) || 0;
+const totalPaid = patient?.transactions.reduce((sum, tr) => sum + tr.amount, 0) || 0;
+const remainingBalance = totalCost - totalPaid;
+      
+  // إذا لم يتم العثور على المريض، يتم تحويله لصفحة 404
+  if (!patient) {
+    notFound(); 
+  }
+
+  return (
+    <div className="space-y-6 relative" dir="rtl">
+      
+      {/* 🔹 الشريط العلوي وزر العودة */}
+      <div className="flex items-center gap-4 mb-6">
+        <Link href="/patients" className="p-2.5 bg-white rounded-xl shadow-sm border border-slate-100 hover:bg-slate-50 transition-colors">
+          <ArrowRight size={20} className="text-slate-600" />
+        </Link>
+        <h1 className="text-2xl font-bold text-slate-800">الملف الطبي</h1>
+      </div>
+
+      {/* 🔹 بطاقة البيانات الأساسية للمريض */}
+      <div className="bg-white p-6 rounded-[1.5rem] border border-slate-100 shadow-sm flex flex-col md:flex-row gap-6 items-start md:items-center relative overflow-hidden">
+        {/* شريط لوني جانبي يعبر عن نوع الحالة */}
+        <div className={`absolute top-0 right-0 w-1.5 h-full ${
+          patient.gender === 'CHILD' ? 'bg-green-400' : 
+          patient.gender === 'PREGNANT' ? 'bg-pink-400' : 'bg-blue-400'
+        }`} />
+
+        <div className="w-16 h-16 bg-slate-50 border border-slate-100 text-blue-600 rounded-2xl flex items-center justify-center shrink-0 z-10">
+          <User size={32} />
+        </div>
+        
+        <div className="flex-1 z-10">
+          <h2 className="text-2xl font-bold text-slate-800 mb-3">{patient.name}</h2>
+          <div className="flex flex-wrap gap-5 text-sm font-medium text-slate-600">
+            <span className="flex items-center gap-2"><Phone size={16} className="text-blue-400"/> {patient.phone}</span>
+            <span className="flex items-center gap-2"><Activity size={16} className="text-emerald-500"/> العمر: {patient.age} سنة</span>
+            {patient.emergencyPhone && (
+              <span className="flex items-center gap-2 text-red-500 bg-red-50 px-3 py-1 rounded-lg">
+                <AlertCircle size={14} /> طوارئ: {patient.emergencyPhone}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+      
+      {/* 💰 ملخص الحالة المالية للمريض - إضافة جديدة */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        
+        {/* كارت إجمالي المطلوب */}
+        <div className="bg-white p-5 rounded-[1.5rem] border border-slate-100 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 bg-slate-50 text-slate-500 rounded-xl flex items-center justify-center shrink-0">
+            <span className="text-xl font-bold">∑</span>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 mb-0.5 font-medium">إجمالي التكلفة</p>
+            <p className="text-xl font-black text-slate-800">{totalCost} <span className="text-xs font-normal text-slate-400">EGP</span></p>
+          </div>
+        </div>
+
+        {/* كارت إجمالي المدفوع */}
+        <div className="bg-emerald-50/50 p-5 rounded-[1.5rem] border border-emerald-100 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+          </div>
+          <div>
+            <p className="text-xs text-emerald-600 mb-0.5 font-medium">إجمالي المدفوع</p>
+            <p className="text-xl font-black text-emerald-700">{totalPaid} <span className="text-xs font-normal text-emerald-500">EGP</span></p>
+          </div>
+        </div>
+
+        {/* كارت المتبقي - يتلون بالأحمر في حالة وجود مديونية */}
+        <div className={`p-5 rounded-[1.5rem] border shadow-sm flex items-center gap-4 ${remainingBalance > 0 ? 'bg-red-50/50 border-red-100' : 'bg-blue-50/50 border-blue-100'}`}>
+          <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${remainingBalance > 0 ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20"/><path d="m17 5-5-3-5 3"/><path d="m17 19-5 3-5-3"/></svg>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 mb-0.5 font-medium">المتبقي</p>
+            <p className={`text-xl font-black ${remainingBalance > 0 ? 'text-red-600' : 'text-blue-600'}`}>
+              {remainingBalance} <span className="text-xs font-normal opacity-50">EGP</span>
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+      {/* 🔹 الأقسام الطبية (هيكل مبدئي للمرحلة القادمة) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+        
+        {/* قسم السجل المرضي والزيارات */}
+        <div className="bg-white p-6 rounded-[1.5rem] border border-slate-100 shadow-sm min-h-[250px]">
+          <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4">
+            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+              <FileText size={20} />
+            </div>
+            <h3 className="font-bold text-slate-800 text-lg">سجل الزيارات والعلاج</h3>
+          </div>
+          
+          {/* زر يفتح النافذة عبر الرابط */}
+          <Link 
+            href={`?addVisit=true`}
+            className="w-full py-2.5 bg-blue-50 text-blue-700 font-bold rounded-xl border border-blue-100 hover:bg-blue-100 transition-colors flex items-center justify-center gap-2 mb-4"
+          >
+            <span>+ إضافة زيارة أو تشخيص</span>
+          </Link>
+
+          {/* النافذة المنبثقة (Modal) لزيارة جديدة */}
+          {resolvedSearchParams?.addVisit && (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white w-full max-w-md rounded-[2rem] shadow-2xl overflow-hidden border border-slate-100">
+                <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/50 text-right">
+                  <h3 className="font-bold text-lg text-slate-800">تسجيل تشخيص/زيارة جديدة</h3>
+                  <Link href="?" className="text-slate-400 hover:text-slate-600">✕</Link>
+                </div>
+                
+                <form action={addTreatmentRecord as any} className="p-6 space-y-4">
+                  <input type="hidden" name="patientId" value={patientId} />
+                  
+                  <div className="text-right">
+                    <label className="block text-sm font-bold text-slate-700 mb-2">التشخيص</label>
+                    <input name="diagnosis" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 text-right" />
+                  </div>
+
+                  <div className="text-right">
+                    <label className="block text-sm font-bold text-slate-700 mb-2">الإجراء الطبي</label>
+                    <textarea name="procedure" rows={3} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 text-right"></textarea>
+                  </div>
+
+                  <div className="text-right">
+                    <label className="block text-sm font-bold text-slate-700 mb-2">الأدوية / الروشتة (اختياري)</label>
+                    <textarea 
+                      name="medications" 
+                      rows={2} 
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 text-right" 
+                      placeholder="مثال: Augmentin 1g كل 12 ساعة..."
+                    ></textarea>
+                  </div>
+
+{/* ... الحقول السابقة (التشخيص، الإجراء، الأدوية) ... */}
+
+<div className="grid grid-cols-2 gap-4 text-right">
+  <div>
+    <label className="block text-sm font-bold text-slate-700 mb-2">المبلغ المدفوع (EGP)</label>
+    <input 
+      type="number" 
+      name="paidAmount" 
+      defaultValue="0"
+      className="w-full p-3 bg-emerald-50 border border-emerald-200 rounded-xl outline-none focus:border-emerald-500 text-right font-bold text-emerald-700" 
+    />
+  </div>
+  <div>
+    <label className="block text-sm font-bold text-slate-700 mb-2">إجمالي التكلفة (EGP)</label>
+    <input 
+      type="number" 
+      name="totalCost" 
+      defaultValue="0"
+      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 text-right font-bold text-slate-700" 
+    />
+  </div>
+</div>
+
+                  {/* الزر الآن منفصل تماماً عن حقل الأدوية */}
+                  <button type="submit" className="w-full py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-all mt-4">
+                    حفظ في سجل المريض
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* قائمة الزيارات الديناميكية */}
+          {patient.treatmentRecords && patient.treatmentRecords.length > 0 ? (
+            <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
+              {patient.treatmentRecords.map((record: any) => (
+                <div key={record.id} className="p-4 bg-slate-50/50 rounded-xl border border-slate-100 hover:border-blue-200 transition-colors">
+                  <div className="flex justify-between items-center mb-2">
+  {/* التاريخ - يظهر على اليمين */}
+  <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md">
+    {new Date(record.createdAt).toLocaleDateString('ar-EG')}
+  </span>
+
+  {/* التكلفة - تظهر على اليسار */}
+  <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
+    {record.cost} EGP
+  </span>
+</div>
+
+<div className="mt-2 space-y-1">
+  <p className="text-sm font-bold text-slate-800 leading-relaxed">
+    التشخيص: {record.diagnosis}
+  </p>
+                    <p className="text-sm font-medium text-slate-600 leading-relaxed">
+                      الإجراء الطبي: {record.procedure}
+                    </p>
+                    {/* عرض الروشتة إذا كانت موجودة */}
+                    {record.medications && (
+                      <div className="mt-4 p-3 bg-blue-50/50 border border-blue-100 rounded-xl flex items-start gap-3">
+                        <div className="p-1.5 bg-blue-100 text-blue-600 rounded-lg shrink-0 mt-0.5">
+                          <FileText size={14} />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-blue-800 mb-1">الروشتة الطبية والأدوية:</p>
+                          <p className="text-sm font-medium text-blue-700 leading-relaxed">
+                            {record.medications}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-32 opacity-50">
+              <FileText size={32} className="mb-2 text-slate-300" />
+              <p className="text-sm text-slate-500">لا توجد زيارات مسجلة حتى الآن</p>
+            </div>
+          )}
+        </div>
+
+        {/* قسم المواعيد */}
+        <div className="bg-white p-6 rounded-[1.5rem] border border-slate-100 shadow-sm min-h-[250px]">
+          {/* رأس القسم: الأيقونة والعنوان */}
+          <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4">
+            <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+              <Calendar size={20} />
+            </div>
+            <h3 className="font-bold text-slate-800 text-lg">المواعيد القادمة</h3>
+          </div>
+
+          {/* زر إضافة موعد جديد */}
+          <Link 
+            href={`?addAppointment=true`}
+            className="w-full py-2.5 bg-emerald-50 text-emerald-700 font-bold rounded-xl border border-emerald-100 hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2 mb-4"
+          >
+            <span>+ حجز موعد جديد</span>
+          </Link>
+
+          {/* النافذة المنبثقة (Modal) لحجز الموعد */}
+          {resolvedSearchParams?.addAppointment && (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white w-full max-w-md rounded-[2rem] shadow-2xl overflow-hidden border border-slate-100">
+                <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/50 text-right">
+                  <h3 className="font-bold text-lg text-slate-800">حجز موعد جديد</h3>
+                  <Link href="?" className="text-slate-400 hover:text-slate-600">✕</Link>
+                </div>
+                
+                <form action={addAppointment as any} className="p-6 space-y-4">
+                  <input type="hidden" name="patientId" value={patientId} />
+                  
+                  <div className="grid grid-cols-2 gap-4 text-right">
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">الوقت</label>
+                      <input type="time" name="time" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-500 text-right" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">التاريخ</label>
+                      <input type="date" name="date" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-500 text-right" />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 mt-4 p-3 bg-red-50 rounded-xl border border-red-100">
+                    <label className="text-sm font-bold text-red-700 cursor-pointer" htmlFor="emergency">حالة طوارئ (مدة الكشف 10 دقائق)</label>
+                    <input type="checkbox" id="emergency" name="isEmergency" value="true" className="w-5 h-5 accent-red-600 cursor-pointer" />
+                  </div>
+
+                  <button type="submit" className="w-full py-4 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition-all mt-4">
+                    تأكيد حجز الموعد
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* قائمة المواعيد الديناميكية */}
+          {patient.appointments && patient.appointments.length > 0 ? (
+            <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
+              {patient.appointments.map((apt: any) => (
+                <div key={apt.id} className={`p-4 rounded-xl border transition-colors ${apt.isEmergency ? 'bg-red-50/50 border-red-100' : 'bg-slate-50/50 border-slate-100'}`}>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className={`text-[11px] font-bold px-2 py-1 rounded-md ${apt.isEmergency ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                      {new Date(apt.startTime).toLocaleDateString('ar-EG')} - {new Date(apt.startTime).toLocaleTimeString('ar-EG', { hour: '2-digit', minute:'2-digit' })}
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-1 rounded-md border border-slate-200">
+                      مجدول
+                    </span>
+                  </div>
+                  <p className="text-sm font-bold text-slate-800">
+                    المدة المتوقعة: {apt.duration} دقيقة
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-32 opacity-50">
+              <Calendar size={32} className="mb-2 text-slate-300" />
+              <p className="text-sm text-slate-500">لا توجد مواعيد مجدولة</p>
+            </div>
+          )}
+        </div>
+
+      </div>
+    </div>
+  );
+}"use client";
+import { completeAppointment } from "@/lib/actions";
+import { CheckCircle } from "lucide-react";
+import { useState } from "react";
+
+export default function CompleteButton({ id }: { id: string }) {
+  const [loading, setLoading] = useState(false);
+
+  const handleComplete = async () => {
+    if (!confirm("هل تريد تأكيد إتمام الكشف؟")) return;
+    setLoading(true);
+    await completeAppointment(id);
+    setLoading(false);
+  };
+
+  return (
+    <button 
+      onClick={handleComplete}
+      disabled={loading}
+      className="px-4 py-3 bg-emerald-50 text-emerald-600 rounded-xl font-bold hover:bg-emerald-100 transition-colors flex items-center gap-2 disabled:opacity-50"
+    >
+      <CheckCircle size={18} />
+      {loading ? "جاري..." : "إتمام الكشف"}
+    </button>
+  );
+}
