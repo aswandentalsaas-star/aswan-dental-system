@@ -14,6 +14,7 @@ const procedures = ["حشو عصب", "حشو عادي", "خلع", "تنظيف", 
 export function JawMapping({ patientId }: { patientId: string }) {
   const [selectedTooth, setSelectedTooth] = useState<number | null>(null);
   const [procedure, setProcedure] = useState("");
+  const [diagnosis, setDiagnosis] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
@@ -39,20 +40,24 @@ export function JawMapping({ patientId }: { patientId: string }) {
   const handleSaveTreatment = async () => {
     if (!selectedTooth || !procedure) return;
     setLoading(true);
-    
+
     const res = await saveToothTreatment({
       patientId,
       toothNumber: selectedTooth,
       procedure,
-      notes
+      // دمج التشخيص والملاحظات ليتم حفظهما معاً في السجل
+      notes: diagnosis ? `التشخيص: ${diagnosis} | ${notes}` : notes 
     });
 
     setLoading(false);
+    
     if (res.success) {
-      setSelectedTooth(null);
+      setSelectedTooth(null); // ✅ هذا السطر هو الذي يغلق النافذة فوراً
       setProcedure("");
+      setDiagnosis(""); // تفريغ حقل التشخيص
       setNotes("");
-      loadHistory(); // إعادة تحميل السجل ليتلون السن فوراً!
+      loadHistory(); 
+      window.location.reload(); // ✅ تحديث الصفحة فوراً لإنهاء حالة الجلسة وتحديث الواجهة
     }
   };
 
@@ -73,6 +78,7 @@ export function JawMapping({ patientId }: { patientId: string }) {
           if (hasHistory) {
             setProcedure(toothHistory[0].procedure);
             setNotes(toothHistory[0].notes || "");
+            setDiagnosis(toothHistory[0].diagnosis || "");
           } else {
             setProcedure("");
             setNotes("");
@@ -144,41 +150,44 @@ export function JawMapping({ patientId }: { patientId: string }) {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">نوع الإجراء الحالي</label>
-              <div className="flex flex-wrap gap-2">
-                {procedures.map((proc) => (
-                  <button
-                    key={proc}
-                    onClick={() => setProcedure(proc)}
-                    className={`px-4 py-2 text-sm font-medium rounded-xl border transition-all ${
-                      procedure === proc 
-                        ? 'bg-blue-100 border-blue-500 text-blue-700 shadow-sm' 
-                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    {proc}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* تحويل الحقل إلى حقل نصي حر وذكي */}
-            {/* الحقل النصي الذكي المربوط بالمسميات الصحيحة في ملفك */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">
-             نوع الإجراء الحالي / التشخيص
-              </label>
-              <textarea
-                value={typeof procedure !== 'undefined' ? procedure : ''} 
-                onChange={(e) => typeof setProcedure !== 'undefined' && setProcedure(e.target.value)}
-                placeholder="اكتب التشخيص أو الإجراء الطبي هنا (مثال: حشو عصب ممتد، علاج جذور، تنظيف لثة...)"
-                className="w-full min-h-[60px] p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-right"
-                rows={2}
-             />
-           </div>
+          {/* قسم التشخيص والإجراء الطبي */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+  
+          {/* 1. حقل التشخيص */}
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700">التشخيص</label>
+            <textarea
+              name="diagnosis"
+              value={diagnosis || ''} // تأكد من ربطها بـ state التشخيص لديك
+              onChange={(e) => setDiagnosis(e.target.value)}
+              placeholder="اكتب التشخيص هنا (مثال: تسوس عميق، التهاب...)"
+              className="w-full min-h-[60px] p-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-right"
+              rows={2}
+            />
           </div>
+
+          {/* 2. حقل الإجراء الطبي (حقل ذكي مقترح) */}
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700">الإجراء الطبي</label>
+            <input
+              list="procedure-suggestions"
+              name="procedure"
+              value={procedure || ''} // تأكد من ربطها بـ state الإجراء لديك
+              onChange={(e) => setProcedure(e.target.value)}
+              placeholder="اكتب الإجراء (سيقترح النظام تلقائياً)"
+              className="w-full p-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-right"
+            />
+          {/* القائمة الذكية المنسدلة التي تحتفظ بالاقتراحات وتظهر فور الكتابة */}
+           <datalist id="procedure-suggestions">
+             <option value="حشو عصب" />
+             <option value="حشو عادي" />
+             <option value="خلع بسيط" />
+             <option value="خلع جراحي" />
+             <option value="تنظيف لثة" />
+             <option value="تركيب تاج" />
+           </datalist>
+         </div>
+       </div>
 
           <div className="mt-6 flex justify-end">
             <button 
