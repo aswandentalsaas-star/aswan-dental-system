@@ -35,6 +35,7 @@ model Clinic {
   patientAttachments PatientAttachment[]
   xrays              XRay[]
   labOrders          LabOrder[]
+  treatmentProcedures TreatmentProcedure[] // لربط كافة الإجراءات الطبية التابعة للعيادة في نظام الـ SaaS
   createdAt          DateTime            @default(now())
   prescriptions      Prescription[]
   clinicSettings     ClinicSettings?
@@ -82,6 +83,7 @@ model Patient {
   transactions     Transaction[] // لربط العمليات المالية للمريض مع ملفه الشخصي
   xrays            XRay[] // لربط الأشعة المولدة للمريض مع ملفه الشخصي
   allLabOrders     LabOrder[] // لضمان ربط المطلوب من المعمل بالمريض مستقبلا
+  treatmentProcedures TreatmentProcedure[] // لربط الإجراءات الطبية المتعددة والتشخيصات بالمركز المالي والفوترة
   createdAt        DateTime            @default(now())
   clinicSettingsId String?
 }
@@ -261,6 +263,25 @@ model ProcedureLog {
   createdAt     DateTime    @default(now())
   patient       Patient?    @relation(fields: [patientId], references: [id])
   patientId     String?
+}
+
+// ✅ جدول الإجراءات الطبية الذكي المرتبط بالمرضى والمالية
+model TreatmentProcedure {
+  id          String   @id @default(cuid())
+  name        String   // اسم الإجراء (مثال: حشو عصب، خلع جراحي)
+  cost        Float    @default(0.0) // تكلفة هذا الإجراء لتوليد الفاتورة
+  notes       String?  // ملاحظات الطبيب الخاصة بهذا الإجراء عينه
+  createdAt   DateTime @default(now())
+
+  // العلاقات الهندسية
+  patientId   String
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  
+  clinicId    String   // لضمان عزل البيانات للأمان العالي لـ SaaS
+  clinic      Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([clinicId])
 }
 
 // جدول إعدادات طباعة العيادة واللوجو (SaaS Feature)
