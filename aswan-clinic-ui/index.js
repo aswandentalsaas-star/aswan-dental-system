@@ -6,7 +6,7 @@ const path = require('path'); // أضف هذا السطر
 const app = express();
 const prisma = new PrismaClient();
 // ⚠️ ضع مفتاحك الحقيقي بين علامات التنصيص أدناه
-const groq = new Groq({ apiKey: "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" }); 
+const apikey = process.env.GROQ_API_KEY;
 
 app.use(express.json());
 app.use(express.static('public')); // هذا السطر يسمح للسيرفر بعرض ملفات الواجهة
