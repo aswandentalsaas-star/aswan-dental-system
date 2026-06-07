@@ -164,13 +164,17 @@ export function JawMapping({ patientId }: { patientId: string }) {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">التشخيص</label>
+            {/* تحويل الحقل إلى حقل نصي حر وذكي */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">
+             نوع الإجراء الحالي / التشخيص
+              </label>
               <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="اكتب التشخيص، عمق التسوس، أو تفاصيل العلاج المتبع..."
-                className="w-full p-3 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none h-24"
+                value={currentProcedure} // أو المتغير المسؤول عن تخزين قيمة الإجراء في ملفك
+                onChange={(e) => setCurrentProcedure(e.target.value)}
+                placeholder="اكتب التشخيص أو الإجراء الطبي هنا (مثال: حشو عصب ممتد، علاج جذور، تنظيف لثة...)"
+                className="w-full min-h-[40px] p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                rows={2}
               />
             </div>
           </div>

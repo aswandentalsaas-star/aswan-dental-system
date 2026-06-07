@@ -1,0 +1,133 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "sqlite"
+      url      = "file:./dev.db"
+}
+
+// 1. ملف المريض الشامل
+model Patient {
+    id               Int           @id @default(autoincrement())
+      name             String
+        phone1           String
+          phone2           String?
+            address          String?
+              
+                // تصنيف الحالة (Checkboxes)
+                  isAdult          Boolean       @default(true)
+                    isChild          Boolean       @default(false)
+                      isPregnant       Boolean       @default(false)
+
+                        // التاريخ المرضي (Medical History Checkboxes)
+                          hasDiabetes      Boolean       @default(false)
+                            hasHypertension  Boolean       @default(false)
+                              hasHeartDisease  Boolean       @default(false)
+                                hasGlandIssues   Boolean       @default(false)
+                                  otherMedical     String?       
+
+                                    // التزام قانوني (إقرار المريض)
+                                      hasSignedConsent Boolean       @default(false) // حقل الإقرار الجديد
+
+                                        // روابط الأتمتة
+                                          whatsappId       String?
+                                            messengerId      String?
+
+                                              // العلاقات
+                                                appointments     Appointment[]
+                                                  treatmentPlans   TreatmentPlan[]
+                                                    attachments      Attachment[]      // رابط لجدول المرفقات (الأشعة والإقرارات)
+                                                      createdAt        DateTime          @default(now())
+}
+
+// 2. نظام المرفقات (الأشعة، الصور، الإقرارات الموقعة)
+model Attachment {
+    id               Int           @id @default(autoincrement())
+      patientId        Int
+        patient          Patient       @relation(fields: [patientId], references: [id])
+          
+            fileUrl          String        // رابط الملف على الخادم السحابي
+              fileType         String        // نوع الملف: XRAY, CONSENT, PHOTO
+                title            String?       // عنوان توضيحي (مثلاً: أشعة ضرس عقل)
+                  
+                    createdAt        DateTime      @default(now())
+}
+
+// 3. نظام المواعيد والزيارات
+model Appointment {
+    id               Int           @id @default(autoincrement())
+      patientId        Int
+        patient          Patient       @relation(fields: [patientId], references: [id])
+          
+            dateTime         DateTime      
+              durationMinutes  Int           @default(30) 
+                status           String        @default("Scheduled") 
+                  currentProcedure String?       
+                    
+                      totalCost        Float         @default(0)
+                        discount         Float         @default(0)
+                          amountPaid       Float         @default(0)
+                            balanceDue       Float         @default(0) 
+                              
+                                notes            String?       
+                                  labWorks         LabWork[]
+                                    createdAt        DateTime      @default(now())
+}
+
+// 4. الإجراءات اللاحقة (Treatment Plan)
+model TreatmentPlan {
+    id               Int           @id @default(autoincrement())
+      patientId        Int
+        patient          Patient       @relation(fields: [patientId], references: [id])
+          
+            procedureName    String        
+              suggestedDate    DateTime?     
+                isCompleted      Boolean       @default(false)
+                  priority         String        @default("Normal") 
+}
+
+// 5. المخازن (Inventory)
+model InventoryItem {
+    id               Int           @id @default(autoincrement())
+      name             String        
+        category         String        
+          totalQuantity    Float         @default(0)
+            availableQty     Float         @default(0)
+              minQuantity      Float         @default(0) 
+                unit             String?       
+                  lastUpdated      DateTime      @updatedAt
+}
+
+// 6. النظام المالي (المصروفات والفواتير)
+model Expense {
+    id               Int           @id @default(autoincrement())
+      category         String        
+        description      String
+          amount           Float
+            date             DateTime      @default(now())
+}
+
+model Invoice {
+    id               Int           @id @default(autoincrement())
+      supplierName     String        
+        totalAmount      Float
+          paidAmount       Float
+            remainingAmount  Float
+              status           String        @default("Pending") 
+                type             String        
+                  date             DateTime      @default(now())
+}
+
+// 7. نظام المعامل
+model LabWork {
+    id               Int           @id @default(autoincrement())
+      labName          String
+        workDetails      String        
+          appointmentId    Int?
+            appointment      Appointment?  @relation(fields: [appointmentId], references: [id])
+              totalCost        Float
+                prepaid          Float
+                  status           String        @default("In-Progress") 
+                    orderDate        DateTime      @default(now())
+}
