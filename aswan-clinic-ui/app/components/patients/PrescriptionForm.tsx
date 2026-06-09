@@ -1,9 +1,10 @@
 "use client";
-
 import { useState, useEffect } from "react";
+// ⚡ 1. استيراد useRouter لتوجيه الطبيب بعد الطباعة
+import { useRouter } from "next/navigation"; 
 import { Plus, Trash2, ShieldAlert, CheckCircle, Loader2, Printer, HeartPulse, Sparkles } from "lucide-react";
 import { checkDrugConflicts, getRecentMedicines } from "@/lib/actions/prescription";
-import { createPrescription, saveMedicalHistory } from "@/lib/actions/clinical"; // استيراد الأكشنز الجديدة والمحمية
+import { createPrescription, saveMedicalHistory } from "@/lib/actions/clinical";
 import { Badge } from "@/components/ui/badge";
 
 interface PrescriptionFormProps {
@@ -13,7 +14,7 @@ interface PrescriptionFormProps {
 
 interface MedicineItem {
   medicineName: string;
-  type: string; // ⚡ الحقل الجديد العبقري لتحديد شكل العلاج
+  type: string; 
   dosage: string;
   frequency: string;
   duration: string;
@@ -21,6 +22,9 @@ interface MedicineItem {
 }
 
 export function PrescriptionForm({ patientId, clinicId }: PrescriptionFormProps) {
+  // ⚡ 2. تعريف الـ Router
+  const router = useRouter();
+
   // 1. حالات الروشتة الطبية
   const [items, setItems] = useState<MedicineItem[]>([
     { medicineName: "", type: "علبة", dosage: "", frequency: "", duration: "", notes: "" }
@@ -33,7 +37,7 @@ export function PrescriptionForm({ patientId, clinicId }: PrescriptionFormProps)
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState(false);
 
-  // 2. ⚡ حالات إدارة التاريخ المرضي المرنة والحية
+  // 2. حالات إدارة التاريخ المرضي المرنة والحية
   const [allergyInput, setAllergyInput] = useState("");
   const [allergiesList, setAllergiesList] = useState<string[]>([]);
   const [chronicInput, setChronicInput] = useState("");
@@ -70,7 +74,7 @@ export function PrescriptionForm({ patientId, clinicId }: PrescriptionFormProps)
     setIsSaved(false);
   };
 
-  // ⚡ إدارة إضافة/حذف الحساسيات محلياً قبل الحفظ بقاعدة البيانات
+  // إدارة إضافة/حذف الحساسيات محلياً قبل الحفظ بقاعدة البيانات
   const addAllergyTag = () => {
     if (allergyInput.trim() && !allergiesList.includes(allergyInput.trim())) {
       setAllergiesList([...allergiesList, allergyInput.trim()]);
@@ -82,7 +86,7 @@ export function PrescriptionForm({ patientId, clinicId }: PrescriptionFormProps)
     setAllergiesList(allergiesList.filter(t => t !== tag));
   };
 
-  // ⚡ إدارة إضافة/حذف الأمراض المزمنة أو "الحمل" محلياً
+  // إدارة إضافة/حذف الأمراض المزمنة أو "الحمل" محلياً
   const addChronicTag = () => {
     if (chronicInput.trim() && !chronicList.includes(chronicInput.trim())) {
       setChronicList([...chronicList, chronicInput.trim()]);
@@ -94,7 +98,7 @@ export function PrescriptionForm({ patientId, clinicId }: PrescriptionFormProps)
     setChronicList(chronicList.filter(t => t !== tag));
   };
 
-  // ⚡ دالة حفظ التاريخ الطبي بالكامل (تغيير الحالة، إزالة الحمل أو الأمراض)
+  // دالة حفظ التاريخ الطبي بالكامل 
   const handleSaveMedicalHistory = async () => {
     setHistoryLoading(true);
     const result = await saveMedicalHistory({
@@ -130,7 +134,7 @@ export function PrescriptionForm({ patientId, clinicId }: PrescriptionFormProps)
     }
   };
 
-  // ⚡ حفظ الروشتة عبر الأكشن المطور المشترك (Transaction Secure)
+  // حفظ الروشتة
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const validItems = items.filter(i => i.medicineName.trim() !== "");
@@ -152,8 +156,15 @@ export function PrescriptionForm({ patientId, clinicId }: PrescriptionFormProps)
     }
   };
 
+  // ⚡ 3. التعديل الذكي لدالة الطباعة والتوجيه
   const handlePrint = () => {
-    window.print();
+    // أمر الطباعة (يوقف مؤقتاً عمل الصفحة حتى يغلق المستخدم نافذة الطباعة)
+    window.print(); 
+    
+    // بعد إغلاق نافذة الطباعة مباشرة، يتم توجيه الطبيب لجدول المواعيد
+    router.push('/appointments');
+    // إنعاش الصفحة للتأكد من تحديث الجداول السحابية (كسر الكاش)
+    router.refresh();
   };
 
   return (
@@ -162,7 +173,7 @@ export function PrescriptionForm({ patientId, clinicId }: PrescriptionFormProps)
       {/* ----------------- واجهة الشاشة (تختفي تماماً عند الطباعة) ----------------- */}
       <div className="print:hidden space-y-6">
         
-        {/* الموديول الجديد: تحديث السجل الطبي والأمراض (مرونة حالة الحمل وغيرها) */}
+        {/* الموديول الجديد: تحديث السجل الطبي والأمراض */}
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
           <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
             <HeartPulse className="text-rose-600 w-5 h-5" /> تحديث السجل الطبي الفوري للمريض
@@ -191,7 +202,7 @@ export function PrescriptionForm({ patientId, clinicId }: PrescriptionFormProps)
               </div>
             </div>
 
-            {/* قسم إدارة الأمراض المزمنة / الحمل القابل للإزالة مستقبلاً */}
+            {/* قسم إدارة الأمراض المزمنة / الحمل */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-600 block">الأمراض المزمنة أو الحالات (مثل: حمل، سكري):</label>
               <div className="flex gap-2">
@@ -204,7 +215,6 @@ export function PrescriptionForm({ patientId, clinicId }: PrescriptionFormProps)
                 />
                 <button type="button" onClick={addChronicTag} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold">إضافة</button>
               </div>
-              {/* 💡 هنا يظهر الحل السحري: بالضغط على علامة × المرافقة لكلمة حمل يتم تنظيف حالة المريضة آلياً بعد عام */}
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {chronicList.map(tag => (
                   <Badge key={tag} variant="secondary" className="bg-amber-50 text-amber-700 gap-1 text-xs">
@@ -261,6 +271,7 @@ export function PrescriptionForm({ patientId, clinicId }: PrescriptionFormProps)
               <label className="block text-sm font-bold text-slate-700">الأدوية الموصوفة:</label>
               {items.map((item, index) => (
                 <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end p-4 bg-slate-50 rounded-xl relative border border-slate-100">
+                  
                   <div className="md:col-span-3">
                     <label className="block text-xs text-slate-500 mb-1">اسم الدواء</label>
                     <input
@@ -279,7 +290,6 @@ export function PrescriptionForm({ patientId, clinicId }: PrescriptionFormProps)
                     </datalist>
                   </div>
                   
-                  {/* ⚡ التعديل العبقري: إضافة حقل نوع شكل العلاج ذكياً ومدمجاً */}
                   <div className="md:col-span-2">
                     <label className="block text-xs text-slate-500 mb-1">النوع</label>
                     <input
@@ -383,7 +393,7 @@ export function PrescriptionForm({ patientId, clinicId }: PrescriptionFormProps)
                     onClick={handlePrint}
                     className="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all flex items-center gap-2"
                   >
-                    <Printer className="w-4 h-4" /> طباعة الروشتة
+                    <Printer className="w-4 h-4" /> طباعة الروشتة وإنهاء الفحص
                   </button>
                 )}
               </div>
@@ -392,9 +402,8 @@ export function PrescriptionForm({ patientId, clinicId }: PrescriptionFormProps)
         </div>
       </div>
 
-      {/* ----------------- قالب الطباعة الاحترافي المحدث (يظهر فقط على الورق) ----------------- */}
+      {/* ----------------- قالب الطباعة الاحترافي المحدث ----------------- */}
       <div className="hidden print:block w-full text-black bg-white min-h-screen font-sans">
-        {/* ترويسة العيادة */}
         <div className="flex justify-between items-center border-b-2 border-slate-800 pb-4 mb-8" style={{ marginTop: "10mm" }}>
           <div>
             <h1 className="text-3xl font-black text-slate-900">أسوان ديجيتال لطب الأسنان</h1>
@@ -407,10 +416,8 @@ export function PrescriptionForm({ patientId, clinicId }: PrescriptionFormProps)
           </div>
         </div>
 
-        {/* علامة Rx الطبية التاريخية للمهنة */}
         <div className="text-5xl font-black text-slate-300 mb-8 font-serif">Rx</div>
-
-        {/* قائمة الأدوية المتضمنة حقل النوع المضاف */}
+        
         <div className="space-y-6 min-h-[400px]">
           {items.map((item, index) => {
             if (!item.medicineName.trim()) return null;
@@ -425,7 +432,6 @@ export function PrescriptionForm({ patientId, clinicId }: PrescriptionFormProps)
           })}
         </div>
 
-        {/* التعليمات العامة */}
         {notes && (
           <div className="mt-8 pt-6 border-t border-slate-200">
             <h4 className="font-bold text-slate-900 mb-2 underline">تعليمات وإرشادات طبية:</h4>
@@ -433,7 +439,6 @@ export function PrescriptionForm({ patientId, clinicId }: PrescriptionFormProps)
           </div>
         )}
 
-        {/* تذيل الروشتة (العنوان والتواصل) القابل للتخصيص من الإعدادات لاحقاً */}
         <div className="mt-16 pt-4 border-t-2 border-slate-800 text-center text-sm text-slate-600" style={{ marginBottom: "10mm" }}>
           <p className="font-bold">العنوان: أسوان - شارع كورنيش النيل | تليفون العيادة: 01000000000</p>
           <p className="mt-1 text-xs">مع تمنياتنا القلبية بالشفاء العاجل والابتسامة المشرقة</p>

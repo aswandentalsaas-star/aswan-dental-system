@@ -6,6 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Calendar as CalendarIcon, Clock, Phone, User, Filter } from "lucide-react";
 import { AdvancedSearchTab } from "./AdvancedSearchTab"; // استيراد المكون الجديد
 
+export const dynamic = "force-dynamic";
+
 export default async function AppointmentsPage() {
   // حساب نطاقات التواريخ بدقة لدعم الجدولة
   const today = new Date();

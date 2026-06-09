@@ -4,6 +4,8 @@ import { Card } from '@/components/ui/card';
 import TodayAppointments from './components/dashboard/TodayAppointments'; // تأكد من الاستيراد الصحيح
 import { AddAppointmentModal } from './components/AddAppointmentModal';
 
+export const dynamic = "force-dynamic";
+
 export default function DashboardPage() {
   return (
     <div className="p-8 space-y-8 bg-slate-50 min-h-screen" dir="rtl">
