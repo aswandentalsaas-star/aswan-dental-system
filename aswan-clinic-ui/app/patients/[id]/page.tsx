@@ -19,8 +19,16 @@ function calculateAge(birthDateString: string | Date): number {
   return age;
 }
 
-export default async function PatientProfilePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PatientProfilePage({
+   params,
+   searchParams 
+  }: {
+   params: Promise<{ id: string }>;
+   searchParams: Promise<{ appointmentId?: string }>;
+  }) {
   const resolvedParams = await params;
+  const resolvedSearchParams = await searchParams; // انتظار searchParams لأنها Promise
+  const appointmentId = resolvedSearchParams.appointmentId; // جلب appointmentId من searchParams إذا كان موجوداً
 
   // 2. جلب بيانات المريض + تضمين جدول التاريخ المرضي الجديد والمواعيد
   const patient = await prisma.patient.findUnique({
@@ -180,8 +188,9 @@ export default async function PatientProfilePage({ params }: { params: Promise<{
       {/* المكون الثالث (الروشتة الذكية) */}
       <div className="print:m-0 print:p-0">
         <PrescriptionForm 
-          patientId={patient.id} 
-          clinicId="cmnvicnma00004n5lfzctorck"
+          patientId={resolvedParams.id} 
+          clinicId={patient.clinicId}
+          appointmentId={appointmentId} // تمرير appointmentId لتمكين تحديث حالة الموعد بعد الطباعة
         />
       </div>
     </div>

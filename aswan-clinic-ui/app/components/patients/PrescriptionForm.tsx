@@ -6,10 +6,12 @@ import { Plus, Trash2, ShieldAlert, CheckCircle, Loader2, Printer, HeartPulse, S
 import { checkDrugConflicts, getRecentMedicines } from "@/lib/actions/prescription";
 import { createPrescription, saveMedicalHistory } from "@/lib/actions/clinical";
 import { Badge } from "@/components/ui/badge";
+import { updateAppointmentStatus } from "@/lib/actions/appointment";
 
 interface PrescriptionFormProps {
   patientId: string;
   clinicId: string;
+  appointmentId?: string; // لإمكانية تحديث حالة الموعد بعد الطباعة
 }
 
 interface MedicineItem {
@@ -21,7 +23,7 @@ interface MedicineItem {
   notes?: string;
 }
 
-export function PrescriptionForm({ patientId, clinicId }: PrescriptionFormProps) {
+export function PrescriptionForm({ patientId, clinicId, appointmentId }: PrescriptionFormProps) {
   // ⚡ 2. تعريف الـ Router
   const router = useRouter();
 
@@ -157,13 +159,18 @@ export function PrescriptionForm({ patientId, clinicId }: PrescriptionFormProps)
   };
 
   // ⚡ 3. التعديل الذكي لدالة الطباعة والتوجيه
-  const handlePrint = () => {
+  const handlePrint = async() => {
     // أمر الطباعة (يوقف مؤقتاً عمل الصفحة حتى يغلق المستخدم نافذة الطباعة)
     window.print(); 
-    
+    if (appointmentId) {
+      try {
+        await updateAppointmentStatus(appointmentId, "COMPLETED");
+      } catch (error) {
+        console.error("خطأ في تحديث حالة الموعد:", error);
+      }
+    }
     // بعد إغلاق نافذة الطباعة مباشرة، يتم توجيه الطبيب لجدول المواعيد
-    router.push('/appointments');
-    // إنعاش الصفحة للتأكد من تحديث الجداول السحابية (كسر الكاش)
+    router.push('/');    // إنعاش الصفحة للتأكد من تحديث الجداول السحابية (كسر الكاش)
     router.refresh();
   };
 

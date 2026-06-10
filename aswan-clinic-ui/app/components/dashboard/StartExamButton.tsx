@@ -22,12 +22,12 @@ export function StartExamButton({ id, patientId, currentStatus }: StartExamButto
       // 1. تحويل الحالة إلى "داخل الكشف الآن" في قاعدة البيانات
       const result = await updateAppointmentStatus(id, "IN_PROGRESS");
       if (result.success) {
-        // 2. الانتقال فوراً لملف المريض المطور لبدء العمل على خريطة الأسنان والروشتة
-        router.push(`/patients/${patientId}`);
+        // ⚡ 2. الانتقال لملف المريض مع تمرير معرف الموعد في الرابط
+        router.push(`/patients/${patientId}?appointmentId=${id}`);
       }
     } else if (currentStatus === "IN_PROGRESS") {
-      // إذا كان المريض في الكشف بالفعل، الزر يوجه الطبيب مباشرة لملفه
-      router.push(`/patients/${patientId}`);
+      // ⚡ إذا كان المريض في الكشف بالفعل، نوجهه مع معرف الموعد
+      router.push(`/patients/${patientId}?appointmentId=${id}`);
     }
     
     setLoading(false);
