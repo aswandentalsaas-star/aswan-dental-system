@@ -89,6 +89,8 @@ model Patient {
 }
 
 enum AppointmentStatus {
+  PENDING
+  CANCELLED
   SCHEDULED
   IN_PROGRESS
   COMPLETED

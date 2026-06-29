@@ -5,33 +5,43 @@ import { revalidatePath } from "next/cache";
 // استيراد الـ Enum الصارم من بريزما لضمان تطابق الـ status 100%
 import { AppointmentStatus } from "@prisma/client";
 
-// الدالة الأولى: لإنشاء الموعد (محدثة بالـ clinicId وتأمين الـ duration)
-export async function createAppointment(data: {
+// 1. تعريف الـ Interface لضمان التعرف على الخصائص الجديدة ومنع أخطاء الـ TypeScript
+interface CreateAppointmentInput {
   patientId: string;
   clinicId: string;
   startTime: string;
-}) {
+  duration: number;       // استقبال مدة الجلسة ديناميكياً (30 أو 10 دقائق)
+  isEmergency: boolean;   // استقبال علم حالة الطوارئ
+  doctorName?: string;
+}
+
+// 2. الدالة المحدثة هندسياً بالكامل
+export async function createAppointment(data: CreateAppointmentInput) {
   try {
     const start = new Date(data.startTime);
     
-    // حساب وقت النهاية تلقائياً بإضافة 30 دقيقة مبدئية لضمان مرونة الجدولة
-    const end = new Date(start.getTime() + 30 * 60 * 1000);
+    // حساب وقت النهاية (endTime) هندسياً بناءً على المدة الممررة ديناميكياً
+    const end = new Date(start.getTime() + data.duration * 60000); 
 
     const appointment = await prisma.appointment.create({
       data: {
         patientId: data.patientId,
         clinicId: data.clinicId,
         startTime: start,
-        endTime: end, // الحقل الإلزامي أصبح مؤمناً الآن وموجوداً!
+        endTime: end,                      // الحفظ الإجباري المتوافق مع الـ Schema
+        isEmergency: data.isEmergency,      // ربط حالة الطوارئ بقاعدة البيانات
         status: "SCHEDULED",
+        doctorName: "د. أيمن",
       },
     });
 
-    revalidatePath("/");
+    // إذا كنت تستخدم revalidatePath لتحديث الواجهة فوراً، اتركها هنا
+    // revalidatePath("/"); 
+    
     return { success: true, appointment };
   } catch (error: any) {
     console.error("خطأ أثناء إنشاء الموعد:", error.message);
-    return { success: false, error: "حدث خطأ أثناء حفظ البيانات" };
+    return { success: false, error: "حدث خطأ أثناء حفظ البيانات الطبية" };
   }
 }
 
