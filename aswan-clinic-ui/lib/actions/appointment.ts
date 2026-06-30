@@ -5,10 +5,12 @@ import { revalidatePath } from "next/cache";
 // استيراد الـ Enum الصارم من بريزما لضمان تطابق الـ status 100%
 import { AppointmentStatus } from "@prisma/client";
 
+const fixedClinicId = "aswan-clinical-id";
+
 // 1. تعريف الـ Interface لضمان التعرف على الخصائص الجديدة ومنع أخطاء الـ TypeScript
 interface CreateAppointmentInput {
   patientId: string;
-  clinicId: string;
+  clinicId?: string;
   startTime: string;
   duration: number;       // استقبال مدة الجلسة ديناميكياً (30 أو 10 دقائق)
   isEmergency: boolean;   // استقبال علم حالة الطوارئ
@@ -26,11 +28,11 @@ export async function createAppointment(data: CreateAppointmentInput) {
     const appointment = await prisma.appointment.create({
       data: {
         patientId: data.patientId,
-        clinicId: data.clinicId,
+        clinicId: fixedClinicId,
         startTime: start,
         endTime: end,                      // الحفظ الإجباري المتوافق مع الـ Schema
         isEmergency: data.isEmergency,      // ربط حالة الطوارئ بقاعدة البيانات
-        status: "SCHEDULED",
+        status: AppointmentStatus.SCHEDULED,
         doctorName: "د. أيمن",
       },
     });
@@ -40,8 +42,8 @@ export async function createAppointment(data: CreateAppointmentInput) {
     
     return { success: true, appointment };
   } catch (error: any) {
-    console.error("خطأ أثناء إنشاء الموعد:", error.message);
-    return { success: false, error: "حدث خطأ أثناء حفظ البيانات الطبية" };
+    console.error("خطأ أثناء إنشاء الموعد على Vercel:", error.message);
+    return { success: false, error: "حدث خطأ أثناء حفظ البيانات الطبية وتحديث الموعد" };
   }
 }
 
@@ -58,7 +60,7 @@ export async function getTodayAppointments() {
 
     const appointments = await prisma.appointment.findMany({
       where: {
-        clinicId: CLINIC_ID,
+        clinicId: fixedClinicId,
         startTime: {
           gte: startOfDay,
           lte: endOfDay,
