@@ -56,10 +56,14 @@ export async function creatPatient(data: any) {
     const gender = data.gender === "أنثى" || data.gender === "FEMALE" ? "FEMALE" : "MALE";
 
     const chronicArray = data.chronicDiseases
-      ? data.chronicDiseases.split(',').map((item: string) => item.trim()).filter(Boolean)
+      ? (typeof data.chronicDiseases === 'string'
+          ? data.chronicDiseases.split(',').map((item: string) => item.trim()).filter(Boolean)
+          : data.chronicDiseases)
       : [];
     const allergiesArray = data.allergies
-      ? data.allergies.split(',').map((item: string) => item.trim()).filter(Boolean)
+      ? (typeof data.allergies === 'string'
+          ? data.allergies.split(',').map((item: string) => item.trim()).filter(Boolean)
+          : data.allergies)
       : [];
     if (data.status === "PREGNANT" || data.isPregnant) {
       chronicArray.push("حمل");
