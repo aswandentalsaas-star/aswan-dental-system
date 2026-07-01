@@ -57,10 +57,12 @@ export function AddAppointmentModal() {
       if (searchQuery.length >= 2) {
         setIsSearching(true);
         const results = await searchPatients(searchQuery);
-        setSearchResults(results);
+        if (results.success && results.patients) {
+          setSearchResults(results.patients);
         setIsSearching(false);
       } else {
         setSearchResults([]);
+      }
       }
     }, 300);
     return () => clearTimeout(delayDebounceFn);

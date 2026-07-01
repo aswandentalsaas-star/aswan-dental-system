@@ -52,16 +52,20 @@ export default async function TodayAppointments() {
             appointments.map((app: any) => {
               // حساب عمر المريض لفحص شارة الطفل
               const patientAge = calculateAge(app.patient.birthDate);
-              // فحص إذا كانت المريضة حاملاً من خلال سجل الأمراض المزمنة أو حقل مخصص
+              // فحص إذا كانت المريضة حاملاً من خلال سجل الأمراض المزمنة
               const isPregnant = app.patient.gender === 'FEMALE' && 
                    app.patient.chronicDiseases?.some((disease: string) => /حمل|حامل/.test(disease));
 
               return (
                 <TableRow key={app.id} className="hover:bg-blue-50/30 transition-colors">
                   
-                  {/* 1. الوقت في المنتصف */}
+                  {/* 1. الوقت - معدل هندسياً ليعمل بتوقيت مصر المحكم على خوادم Vercel */}
                   <TableCell className="font-bold text-slate-700 text-center">
-                    {new Date(app.startTime).toLocaleTimeString("ar-EG", { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(app.startTime).toLocaleTimeString("ar-EG", { 
+                      hour: '2-digit', 
+                      minute: '2-digit',
+                      timeZone: 'Africa/Cairo' // الحماية الصارمة ضد فارق التوقيت العالمي لـ Vercel
+                    })}
                   </TableCell>
                   
                   {/* 2. اسم المريض مع الشارات الذكية المحقونة */}
@@ -78,15 +82,13 @@ export default async function TodayAppointments() {
                             🚨 طوارئ
                           </span>
                         )}
-
-                        {/* شارة الحوامل المحقونة ذكياً */}
+                        {/* شارة الحوامل */}
                         {isPregnant && (
                           <span className="px-2 py-0.5 text-[10px] font-black bg-purple-100 text-purple-700 rounded-full border border-purple-200">
                             🤰 حامل
                           </span>
                         )}
-
-                        {/* شارة الأطفال المحقونة ذكياً */}
+                        {/* شارة الأطفال */}
                         {patientAge < 12 && (
                           <span className="px-2 py-0.5 text-[10px] font-black bg-cyan-100 text-cyan-700 rounded-full border border-cyan-200">
                             👶 طفل
@@ -99,7 +101,7 @@ export default async function TodayAppointments() {
                     </div>
                   </TableCell>
                   
-                  {/* 3. شارة الحالة ممركزة ودعم الحالات القديمة والجديدة للـ Enum */}
+                  {/* 3. شارة الحالة ممركزة */}
                   <TableCell className="text-center">
                     <div className="flex justify-center items-center">
                       {(app.status === 'SCHEDULED' || app.status === 'PENDING') && (
