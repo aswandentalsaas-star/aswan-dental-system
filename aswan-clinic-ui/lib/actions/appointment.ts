@@ -1,13 +1,13 @@
 "use server";
-
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 // استيراد الـ Enum الصارم من بريزما لضمان تطابق الـ status 100%
 import { AppointmentStatus } from "@prisma/client";
 
-const fixedClinicId = "aswan-clinical-id";
+// المعرف الموحد والثابت للعيادة ليتطابق 100% مع ملف المرضى وقاعدة البيانات
+const fixedClinicId = "aswan-clinic-id";
 
-// 1. تعريف الـ Interface لضمان التعرف على الخصائص الجديدة ومنع أخطاء الـ TypeScript
+// 1. تعريف الـ Interface لضمان التعرف على الخصائص ومنع أخطاء الـ TypeScript
 interface CreateAppointmentInput {
   patientId: string;
   clinicId?: string;
@@ -17,41 +17,39 @@ interface CreateAppointmentInput {
   doctorName?: string;
 }
 
-// 2. الدالة المحدثة هندسياً بالكامل
+// 2. الدالة المحدثة لحجز وإنشاء المواعيد بأمان
 export async function createAppointment(data: CreateAppointmentInput) {
   try {
     const start = new Date(data.startTime);
     
     // حساب وقت النهاية (endTime) هندسياً بناءً على المدة الممررة ديناميكياً
-    const end = new Date(start.getTime() + data.duration * 60000); 
+    const end = new Date(start.getTime() + data.duration * 60000);
 
     const appointment = await prisma.appointment.create({
       data: {
         patientId: data.patientId,
-        clinicId: fixedClinicId,
+        clinicId: fixedClinicId, // استخدام المعرف الصحيح والموحد
         startTime: start,
-        endTime: end,                      // الحفظ الإجباري المتوافق مع الـ Schema
-        isEmergency: data.isEmergency,      // ربط حالة الطوارئ بقاعدة البيانات
+        endTime: end,              // الحفظ الإجباري المتوافق مع الـ Schema
+        isEmergency: data.isEmergency, // ربط حالة الطوارئ بقاعدة البيانات
         status: AppointmentStatus.SCHEDULED,
-        doctorName: "د. أيمن",
+        doctorName: data.doctorName || "د. أيمن",
       },
     });
-
-    // إذا كنت تستخدم revalidatePath لتحديث الواجهة فوراً، اتركها هنا
-    // revalidatePath("/"); 
+    
+    // تحديث مسارات الصفحة فوراً لتعكس الموعد الجديد في جدول اليوم والعدادات
+    revalidatePath("/"); 
     
     return { success: true, appointment };
   } catch (error: any) {
-    console.error("خطأ أثناء إنشاء الموعد على Vercel:", error.message);
+    console.error("خطأ أثناء إنشاء الموعد على السيرفر البنائي:", error.message);
     return { success: false, error: "حدث خطأ أثناء حفظ البيانات الطبية وتحديث الموعد" };
   }
 }
 
-// الدالة الثانية: جلب مواعيد اليوم (Daily Agenda)
+// 3. دالة جلب مواعيد اليوم (Daily Agenda) الموحدة
 export async function getTodayAppointments() {
   try {
-    const CLINIC_ID = "cmnvicnma00004n5lfzctorck";
-    
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
@@ -60,7 +58,7 @@ export async function getTodayAppointments() {
 
     const appointments = await prisma.appointment.findMany({
       where: {
-        clinicId: fixedClinicId,
+        clinicId: fixedClinicId, // القراءة من نفس العيادة الموحدة
         startTime: {
           gte: startOfDay,
           lte: endOfDay,
@@ -76,12 +74,12 @@ export async function getTodayAppointments() {
 
     return { success: true, appointments };
   } catch (error: any) {
-    console.error("خطأ أثناء جلب المواعيد:", error.message);
+    console.error("خطأ أثناء جلب المواعيد اليومية:", error.message);
     return { success: false, error: "فشل جلب مواعيد اليوم" };
   }
 }
 
-// الدالة الثالثة: تحديث الحالة وتأمينها بنوع البيانات الخاص ببريزما
+// 4. دالة تحديث حالة الموعد وتأمينها
 export async function updateAppointmentStatus(
   id: string, 
   status: AppointmentStatus
@@ -100,11 +98,12 @@ export async function updateAppointmentStatus(
   }
 }
 
-// الدالة الرابعة: جلب المواعيد المتقدمة بنطاق زمني مخصص
+// 5. دالة جلب المواعيد المتقدمة بنطاق زمني مخصص للتقارير والداشبورد
 export async function getAppointmentsByRange(startDate: Date, endDate: Date) {
   try {
     const appointments = await prisma.appointment.findMany({
       where: {
+        clinicId: fixedClinicId, // حصر النطاق في عيادتنا الموحدة
         startTime: {
           gte: startDate,
           lte: endDate,
