@@ -1,3 +1,5 @@
+// test automatic deployment after configuration
+
 import { Users, CalendarClock, Activity, ShieldAlert } from 'lucide-react';
 import { RevenueCard } from './components/RevenueCard';
 import { Card } from '@/components/ui/card';
